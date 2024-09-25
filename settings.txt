@@ -1,0 +1,2 @@
+Origin > C:\Users\me\jfif
+Destination > C:\Users\me\jpeg

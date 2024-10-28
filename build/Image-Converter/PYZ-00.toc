@@ -1,4 +1,4 @@
-('D:\\Users\\Vlad\\Projects\\Applications\\Image-Converter\\build\\Image-Converter\\PYZ-00.pyz',
+('D:\\Users\\Vlad\\Projects\\Applicationss\\Image-Converter\\build\\Image-Converter\\PYZ-00.pyz',
  [('multiprocessing.popen_spawn_posix',
    'C:\\Users\\HP '
    'User\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\multiprocessing\\popen_spawn_posix.py',
@@ -555,10 +555,6 @@
    'C:\\Users\\HP '
    'User\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\http\\cookiejar.py',
    'PYMODULE'),
-  ('tracemalloc',
-   'C:\\Users\\HP '
-   'User\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\tracemalloc.py',
-   'PYMODULE'),
   ('stringprep',
    'C:\\Users\\HP '
    'User\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\stringprep.py',
@@ -566,6 +562,10 @@
   ('_py_abc',
    'C:\\Users\\HP '
    'User\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\_py_abc.py',
+   'PYMODULE'),
+  ('tracemalloc',
+   'C:\\Users\\HP '
+   'User\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\tracemalloc.py',
    'PYMODULE'),
   ('subprocess',
    'C:\\Users\\HP '

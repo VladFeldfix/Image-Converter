@@ -9,15 +9,12 @@ import os
 import subprocess
 from pdf2image import convert_from_path
 from fpdf import FPDF
-from PyPDF2 import PdfMerger
+from PyPDF2 import PdfMerger, PdfReader, PdfWriter
 import datetime
 
 class image_converer:
     def __init__(self):
-        self.pdf = FPDF()
-        self.merger = PdfMerger()
-        self.origin_path = ""
-        self.destination_path = ""
+        self.reset()
         self.settings = {}
         self.load_settings()
         self.conversion_happened = False
@@ -142,7 +139,7 @@ class image_converer:
                     output_path = self.settings["Destination"]+"/"+filename+".pdf"
                     data = self.save_pdf(input_path, output_path)
                 elif formatt == "Combined pdf":
-                    data = self.add_to_pdf_list(input_path)
+                    data = self.add_to_combined_pdf(input_path)
             text = data[0]
             color = data[1]
             self.selected_files_list.configure(state=NORMAL)
@@ -175,36 +172,32 @@ class image_converer:
         self.selected_files_button.configure(state=NORMAL)
         self.destination_location.configure(state=NORMAL)
         self.open_folder(self.settings["Destination"])
-        self.merger = PdfMerger()
-        self.pdf = FPDF()
+        self.reset()
 
     def save_img(self, input_path, output_path, dst_format):
         return_text = ""
 
         # image to image
-        try:
-            # Open the image
-            with Image.open(input_path) as img:
-                # Save the image
-                img.save(output_path, dst_format)
-                return_text = ("Converted: "+input_path+" to "+output_path,"GOOD")
-        except Exception as e:
-            return_text = (input_path+" Error: "+str(e), "BAD")
+        if not ".PDF" in input_path.upper():
+            try:
+                # Open the image
+                with Image.open(input_path) as img:
+                    # Save the image
+                    output_path = self.get_unique_name(output_path)
+                    img.save(output_path, dst_format)
+                    return_text = ("Converted: "+input_path+" to "+output_path,"GOOD")
+            except Exception as e:
+                return_text = (input_path+" Error: "+str(e), "BAD")
         
         # pdf to image
-        if ".pdf" in input_path:
+        else:
             try:
                 poppler_path = "poppler-24.08.0/Library/bin"
                 images = convert_from_path(input_path,poppler_path = poppler_path)
 
                 for i, image in enumerate(images):
-                    if not os.path.isfile(output_path):
-                        image.save(output_path, dst_format)
-                    else:
-                        tmp = output_path.split(".")
-                        name = tmp[0]
-                        fmt = tmp[1]
-                        image.save(name+" ("+str(i+1)+")."+fmt, dst_format)
+                    output_path = self.get_unique_name(output_path)
+                    image.save(output_path, dst_format)
                     return_text = ("Converted: "+input_path+" to "+output_path,"GOOD")
             except Exception as e:
                 return_text = (input_path+" Error: "+str(e), "BAD")
@@ -214,66 +207,94 @@ class image_converer:
     
     def save_pdf(self, input_path, output_path):
         return_text = ""
-        try:
-            self.add_a_page_to_pdf_file(input_path)
-            self.add_an_image_to_pdf_file(input_path)
-            #self.pdf.image(input_path,0,0,320,240)
-            self.pdf.output(output_path, "F")
-            return_text = ("Converted: "+input_path+" to "+output_path,"GOOD")
-            self.pdf = FPDF()
-        except Exception as e:
-            return_text = (input_path+" Error: "+str(e), "BAD")
 
+        if not ".PDF" in input_path.upper():
+            try:
+                self.create_pdf_page(input_path)
+                self.add_an_image_to_pdf_file(input_path)
+                #self.pdf.image(input_path,0,0,320,240)
+                output_path = self.get_unique_name(output_path)
+                self.pdf.output(output_path, "F")
+                return_text = ("Converted: "+input_path+" to "+output_path,"GOOD")
+                self.pdf = FPDF()
+            except Exception as e:
+                return_text = (input_path+" Error: "+str(e), "BAD")
+        else:
+            try:
+                os.makedirs(output_path, exist_ok=True)
+
+                # Read the PDF
+                reader = PdfReader(input_path)
+                for page_num, page in enumerate(reader.pages, start=1):
+                    writer = PdfWriter()
+                    writer.add_page(page)
+
+                    # Create an output file name for each page
+                    output_file = os.path.join(output_path, f"page_{page_num}.pdf")
+
+                    # Write the page to a file
+                    with open(output_file, "wb") as output_pdf:
+                        writer.write(output_pdf)
+                    
+                    return_text = ("Converted: "+input_path+" to "+output_path,"GOOD")
+            except Exception as e:
+                return_text = (input_path+" Error: "+str(e), "BAD")
         # result
         return return_text
     
-    def save_combined_pdf(self, input_path):
+    def add_to_combined_pdf(self, input_path):
         return_text = ""
         
         # for images
-        try:
-            self.add_a_page_to_pdf_file(input_path)
-            self.add_an_image_to_pdf_file(input_path)
-            #self.pdf.image(input_path,0,0,320,240)
-            return_text = (input_path+" added to combined pdf file","GOOD")
-        except Exception as e:
-            return_text = (input_path+" Error: "+str(e), "BAD")
+        if not ".PDF" in input_path.upper():
+            try:
+                self.create_pdf_page(input_path)
+                self.add_an_image_to_pdf_file(input_path)
+                #self.pdf.image(input_path,0,0,320,240)
+                return_text = (input_path+" added to combined pdf file","GOOD")
+                self.combine_img_to_pdf = True
+            except Exception as e:
+                return_text = (input_path+" Error: "+str(e), "BAD")
         
         # for pdf files
-        if ".pdf" in input_path:
+        else:
             try:
                 self.merger.append(open(input_path, 'rb'))
                 return_text = (input_path+" added to combined pdf file","GOOD")
+                self.combine_pdf_to_pdf = True
             except Exception as e:
                 return_text = (input_path+" Error: "+str(e), "BAD")
         # result
         return return_text
 
-    def try_save_combined_pdf(self, output_path):
+    def save_combined_pdf(self, output_path):
         return_text = ""
         
         # for images
-        try:
-            self.pdf.output(output_path, "F")
-            #return_text = ("Converted: "+input_path+" to "+output_path,"GOOD")
-            self.pdf = FPDF()
-            return_text = ("Saved as: "+output_path,"GOOD")
-        except Exception as e:
-            return_text = ("Error: "+str(e), "BAD")
+        if self.combine_img_to_pdf:
+            try:
+                output_path = self.get_unique_name(output_path)
+                self.pdf.output(output_path, "F")
+                #return_text = ("Converted: "+input_path+" to "+output_path,"GOOD")
+                self.pdf = FPDF()
+                return_text = ("Saved as: "+output_path,"GOOD")
+            except Exception as e:
+                return_text = ("Error: "+str(e), "BAD")
         
         # for pdf files
-        else:
+        if self.combine_pdf_to_pdf:
             try:
+                output_path = self.get_unique_name(output_path)
                 with open(output_path, "wb") as fout:
                     self.merger.write(fout)
                 return_text = ("Saved as: "+output_path,"GOOD")
             except Exception as e:
                 return_text = ("Error: "+str(e), "BAD")
-        
+
         # result
         return return_text
 
-    def add_a_page_to_pdf_file(self, input_path):
+    def create_pdf_page(self, input_path):
         cover = Image.open(input_path)
         width, height = cover.size
         orientation = 'P' if width < height else 'L'
@@ -356,5 +377,29 @@ class image_converer:
         mm = str(now.month).zfill(2)
         dd = str(now.day).zfill(2)
         return yyyy+"-"+mm+"-"+dd
+
+    def reset(self):
+        self.pdf = FPDF()
+        self.merger = PdfMerger()
+        self.origin_path = ""
+        self.destination_path = ""
+        self.combine_img_to_pdf = False
+        self.combine_pdf_to_pdf = False
+        self.index = 1
+    
+    def get_unique_name(self, file_name):
+        # Split the file name into the base name and extension
+        base_name, extension = os.path.splitext(file_name)
+        
+        # Check if the file exists
+        counter = 1
+        new_name = file_name
+        
+        while os.path.exists(new_name):
+            # Add a number to the file name
+            new_name = f"{base_name}_{counter}{extension}"
+            counter += 1
+        
+        return new_name
 
 image_converer()

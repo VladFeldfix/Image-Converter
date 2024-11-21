@@ -7,6 +7,7 @@ import threading
 from PIL import Image
 import os
 import subprocess
+from pdf2image import convert_from_path
 
 class image_converer:
     def __init__(self):
@@ -24,7 +25,7 @@ class image_converer:
         H = 240*3
         root.geometry(str(W)+"x"+str(H))
         root.minsize(320,240)
-        root.title("Image Converer v2.0")
+        root.title("Image Converer v2.1")
         root.iconbitmap("favicon.ico")
         root.columnconfigure(0, weight=1)
         root.rowconfigure(0, weight=1)
@@ -152,8 +153,10 @@ class image_converer:
 
     def try_convert(self, input_path, output_path, dst_format):
         return_text = ""
+
+        # for images
         try:
-            # Open the JFIF image
+            # Open the image
             with Image.open(input_path) as img:
                 # Save the image
                 img.save(output_path, dst_format)
@@ -161,6 +164,16 @@ class image_converer:
         except Exception as e:
             return_text = (input_path+" Error: "+str(e), "BAD")
         
+        # for pdf's
+        try:
+            poppler_path = r"poppler-24.08.0/Library/bin"
+            images = convert_from_path(input_path,poppler_path = poppler_path)
+
+            for i, image in enumerate(images):
+                image.save(output_path, dst_format)
+                return_text = ("Converted: "+input_path+" to "+output_path,"GOOD")
+        except Exception as e:
+            return_text = (input_path+" Error: "+str(e), "BAD")
         return return_text
     
     def change_format(self,a,b,c):

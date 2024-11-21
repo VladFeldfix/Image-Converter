@@ -8,9 +8,14 @@ from PIL import Image
 import os
 import subprocess
 from pdf2image import convert_from_path
+from fpdf import FPDF
+from PyPDF2 import PdfMerger
+import datetime
 
 class image_converer:
     def __init__(self):
+        self.pdf = FPDF()
+        self.merger = PdfMerger()
         self.origin_path = ""
         self.destination_path = ""
         self.settings = {}
@@ -25,7 +30,8 @@ class image_converer:
         H = 240*3
         root.geometry(str(W)+"x"+str(H))
         root.minsize(320,240)
-        root.title("Image Converer v2.1")
+        self.title = "Image Converer v2.2"
+        root.title(self.title)
         root.iconbitmap("favicon.ico")
         root.columnconfigure(0, weight=1)
         root.rowconfigure(0, weight=1)
@@ -54,7 +60,7 @@ class image_converer:
         # convert to type
         convert_to_label = Label(frame, text="Convert to:")
         convert_to_label.grid(row=1, column=0, sticky="W")
-        options_list = ["jpeg", "png", "bmp", "tiff"]
+        options_list = ["jpeg", "png", "bmp", "tiff", "Single pdf", "Combined pdf"]
         self.filetype_selected_value = StringVar(root)
         if not self.settings["Conver to"] in options_list:
             setto = options_list[0]
@@ -127,8 +133,16 @@ class image_converer:
             filename = filename.split(".")
             filename = filename[:-1]
             filename = ".".join(filename)
-            output_path = self.settings["Destination"]+"/"+filename+"."+self.settings["Conver to"]
-            data = self.try_convert(input_path, output_path, self.settings["Conver to"])
+            formatt = self.settings["Conver to"]
+            if formatt != "Single pdf" and formatt != "Combined pdf":
+                output_path = self.settings["Destination"]+"/"+filename+"."+formatt
+                data = self.save_img(input_path, output_path, formatt)
+            else:
+                if formatt == "Single pdf":
+                    output_path = self.settings["Destination"]+"/"+filename+".pdf"
+                    data = self.save_pdf(input_path, output_path)
+                elif formatt == "Combined pdf":
+                    data = self.add_to_pdf_list(input_path)
             text = data[0]
             color = data[1]
             self.selected_files_list.configure(state=NORMAL)
@@ -140,8 +154,19 @@ class image_converer:
                 self.selected_files_list.itemconfig(i, {'bg':'red'})
             self.selected_files_list.configure(state=DISABLED)
         
-        # conversion over
-        messagebox.showinfo("Info","Done!")
+        # convert to pdf
+        if formatt == "Combined pdf":
+            output_path = self.settings["Destination"]+"/"+self.today()+"_combined.pdf"
+            data = self.save_combined_pdf(output_path)
+            text = data[0]
+            color = data[1]
+            if color == "GOOD":
+                messagebox.showinfo("Info","Done!")
+            elif color == "BAD":
+                self.error(text)
+        else:
+            # conversion over
+            messagebox.showinfo("Info","Done!")
         self.selected_files_list.configure(state=NORMAL)
         self.selected_files_list.configure(selectmode=SINGLE)
         self.selected_files_list.configure(state=NORMAL)
@@ -150,11 +175,13 @@ class image_converer:
         self.selected_files_button.configure(state=NORMAL)
         self.destination_location.configure(state=NORMAL)
         self.open_folder(self.settings["Destination"])
+        self.merger = PdfMerger()
+        self.pdf = FPDF()
 
-    def try_convert(self, input_path, output_path, dst_format):
+    def save_img(self, input_path, output_path, dst_format):
         return_text = ""
 
-        # for images
+        # image to image
         try:
             # Open the image
             with Image.open(input_path) as img:
@@ -164,18 +191,106 @@ class image_converer:
         except Exception as e:
             return_text = (input_path+" Error: "+str(e), "BAD")
         
-        # for pdf's
-        try:
-            poppler_path = r"poppler-24.08.0/Library/bin"
-            images = convert_from_path(input_path,poppler_path = poppler_path)
+        # pdf to image
+        if ".pdf" in input_path:
+            try:
+                poppler_path = "poppler-24.08.0/Library/bin"
+                images = convert_from_path(input_path,poppler_path = poppler_path)
 
-            for i, image in enumerate(images):
-                image.save(output_path, dst_format)
-                return_text = ("Converted: "+input_path+" to "+output_path,"GOOD")
-        except Exception as e:
-            return_text = (input_path+" Error: "+str(e), "BAD")
+                for i, image in enumerate(images):
+                    if not os.path.isfile(output_path):
+                        image.save(output_path, dst_format)
+                    else:
+                        tmp = output_path.split(".")
+                        name = tmp[0]
+                        fmt = tmp[1]
+                        image.save(name+" ("+str(i+1)+")."+fmt, dst_format)
+                    return_text = ("Converted: "+input_path+" to "+output_path,"GOOD")
+            except Exception as e:
+                return_text = (input_path+" Error: "+str(e), "BAD")
+
+        # result
         return return_text
     
+    def save_pdf(self, input_path, output_path):
+        return_text = ""
+        try:
+            self.add_a_page_to_pdf_file(input_path)
+            self.add_an_image_to_pdf_file(input_path)
+            #self.pdf.image(input_path,0,0,320,240)
+            self.pdf.output(output_path, "F")
+            return_text = ("Converted: "+input_path+" to "+output_path,"GOOD")
+            self.pdf = FPDF()
+        except Exception as e:
+            return_text = (input_path+" Error: "+str(e), "BAD")
+
+        # result
+        return return_text
+    
+    def save_combined_pdf(self, input_path):
+        return_text = ""
+        
+        # for images
+        try:
+            self.add_a_page_to_pdf_file(input_path)
+            self.add_an_image_to_pdf_file(input_path)
+            #self.pdf.image(input_path,0,0,320,240)
+            return_text = (input_path+" added to combined pdf file","GOOD")
+        except Exception as e:
+            return_text = (input_path+" Error: "+str(e), "BAD")
+        
+        # for pdf files
+        if ".pdf" in input_path:
+            try:
+                self.merger.append(open(input_path, 'rb'))
+                return_text = (input_path+" added to combined pdf file","GOOD")
+            except Exception as e:
+                return_text = (input_path+" Error: "+str(e), "BAD")
+        # result
+        return return_text
+
+    def try_save_combined_pdf(self, output_path):
+        return_text = ""
+        
+        # for images
+        try:
+            self.pdf.output(output_path, "F")
+            #return_text = ("Converted: "+input_path+" to "+output_path,"GOOD")
+            self.pdf = FPDF()
+            return_text = ("Saved as: "+output_path,"GOOD")
+        except Exception as e:
+            return_text = ("Error: "+str(e), "BAD")
+        
+        # for pdf files
+        else:
+            try:
+                with open(output_path, "wb") as fout:
+                    self.merger.write(fout)
+                return_text = ("Saved as: "+output_path,"GOOD")
+            except Exception as e:
+                return_text = ("Error: "+str(e), "BAD")
+        
+        # result
+        return return_text
+
+    def add_a_page_to_pdf_file(self, input_path):
+        cover = Image.open(input_path)
+        width, height = cover.size
+        orientation = 'P' if width < height else 'L'
+        self.pdf.add_page(orientation = orientation)
+
+    def add_an_image_to_pdf_file(self, input_path):
+        im = Image.open(input_path)
+        width, height = im.size
+        self.pdf.author = self.title
+        self.pdf.b_margin = 10
+        orientation = 'P' if width < height else 'L'
+        width, height = float(width * 0.264583), float(height * 0.264583)
+        pdf_size = {'P': {'w': 200, 'h': 287}, 'L': {'w': 287, 'h': 200}}
+        width = width if width < pdf_size[orientation]['w'] else pdf_size[orientation]['w']
+        height = height if height < pdf_size[orientation]['h'] else pdf_size[orientation]['h']
+        self.pdf.image(input_path,5,5,width,height)
+
     def change_format(self,a,b,c):
         self.edit_settings("Conver to", self.filetype_selected_value.get())
 
@@ -233,5 +348,13 @@ class image_converer:
     
     def help(self):
         os.popen("help.pdf")
+
+    def today(self):
+        # get today
+        now = datetime.datetime.now()
+        yyyy = str(now.year)
+        mm = str(now.month).zfill(2)
+        dd = str(now.day).zfill(2)
+        return yyyy+"-"+mm+"-"+dd
 
 image_converer()

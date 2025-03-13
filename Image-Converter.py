@@ -27,7 +27,7 @@ class image_converer:
         H = 240*3
         root.geometry(str(W)+"x"+str(H))
         root.minsize(320,240)
-        self.title = "Image Converer v2.2"
+        self.title = "Image Converer v2.0"
         root.title(self.title)
         root.iconbitmap("favicon.ico")
         root.columnconfigure(0, weight=1)
